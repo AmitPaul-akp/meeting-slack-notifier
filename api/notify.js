@@ -1,4 +1,6 @@
 export default async function handler(req, res) {
+  console.log("Incoming request:", req.body);
+
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
@@ -6,6 +8,7 @@ export default async function handler(req, res) {
   const { summary, description, startTime, agentEmail, clientEmail, joinLink } = req.body;
 
   if (!summary || !startTime || !agentEmail) {
+    console.log("Missing fields", { summary, startTime, agentEmail });
     return res.status(400).json({ error: "Missing required fields" });
   }
 
@@ -13,10 +16,11 @@ export default async function handler(req, res) {
   const slackUserId = agentMap[agentEmail];
 
   if (!slackUserId) {
+    console.log("Unknown agent email:", agentEmail);
     return res.status(400).json({ error: "Unknown agent email" });
   }
 
-  const message = `:date: *New Client Meeting Scheduled!*
+  const message = `📅 *New Client Meeting Scheduled!*
 *Client:* ${clientEmail || "N/A"}
 *Event:* ${summary}
 *Time:* ${startTime}
@@ -38,6 +42,7 @@ export default async function handler(req, res) {
   const responseData = await result.json();
 
   if (!responseData.ok) {
+    console.log("Slack error:", responseData);
     return res.status(500).json({ error: "Slack API error", details: responseData });
   }
 
