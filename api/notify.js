@@ -1,29 +1,47 @@
 export default async function handler(req, res) {
-  if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
 
-  const { summary, description, startTime, agentEmail, joinLink } = req.body;
+  const { summary, description, startTime, agentEmail, clientEmail, joinLink } = req.body;
 
-  const agentMap = JSON.parse(process.env.AGENT_MAP);
+  if (!summary || !startTime || !agentEmail) {
+    return res.status(400).json({ error: "Missing required fields" });
+  }
+
+  const agentMap = JSON.parse(process.env.AGENT_MAP || "{}");
   const slackUserId = agentMap[agentEmail];
 
-  if (!slackUserId) return res.status(400).send("No Slack ID for this agent");
+  if (!slackUserId) {
+    return res.status(400).json({ error: "Unknown agent email" });
+  }
 
-  const message = {
-    channel: slackUserId,
-    text: `📅 *New Client Meeting Scheduled!*\n\n*Client/Event:* ${summary}\n*Time:* ${startTime}\n*Join Link:* ${joinLink || "N/A"}\n*Details:* ${description || "No extra info"}`
-  };
+  const message = `:date: *New Client Meeting Scheduled!*
+*Client:* ${clientEmail || "N/A"}
+*Event:* ${summary}
+*Time:* ${startTime}
+*Join Link:* ${joinLink || "N/A"}
+*Details:* ${description || "No extra info"}`;
 
-  const resp = await fetch("https://slack.com/api/chat.postMessage", {
+  const result = await fetch("https://slack.com/api/chat.postMessage", {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${process.env.SLACK_BOT_TOKEN}`,
-      "Content-Type": "application/json"
+      Authorization: `Bearer ${process.env.SLACK_BOT_TOKEN}`,
+      "Content-Type": "application/json",
     },
-    body: JSON.stringify(message)
+    body: JSON.stringify({
+      channel: slackUserId,
+      text: message,
+    }),
   });
 
-  const data = await resp.json();
-  if (!data.ok) return res.status(500).json({ error: data.error });
+  const responseData = await result.json();
 
-  res.status(200).send("Notification sent!");
+  if (!responseData.ok) {
+    return res.status(500).json({ error: "Slack API error", details: responseData });
+  }
+
+  return res.status(200).json({ message: "Notification sent!" });
 }
+
+Add clientEmail support to Slack notifier
